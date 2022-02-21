@@ -1,0 +1,10 @@
+spring:
+  cloud:
+    gateway:
+      routes:
+        - uri: https://github.com
+          predicates:
+            - Path=/github/**
+            - CustomWASMPredicate=
+          filters:
+            - StripPrefix=1
