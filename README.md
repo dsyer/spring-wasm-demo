@@ -2,10 +2,11 @@ Spring Cloud Gateway with a custom predicate implemented as a WASM.
 
 Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`. If there is no header with key "one" the predicate does not match and you get a 404. If there is a header called "one" then the request is routed to github. More effort required to make a useful feature:
 
-* There is only one "plugin" in this project and it is hard coded in the custom predicate, but the idea is that it could be parameterized.
-* Extend to filters as well as predicates.
-* Resource management (prevent leaks and re-use instances of the WASM)
-* Pass some configuration down from the JVM into the WASM
+* [x] There is only one "plugin" in this project but its location could be parameterized (it's now a resource location in the predicate config).
+* [ ] Extend to filters as well as predicates.
+* [x] Resource management (prevent leaks and re-use instances of the WASM). Maybe could be improved still, but the things that can be shared and now shared, and everything is disposed.
+* [ ] Pass some configuration down from the JVM into the WASM
+* [ ] See if there is a way to support a subset of [proxy-wasm](https://github.com/proxy-wasm/spec).
 
 The predicate here was written in C and compiled with [emscripten](https://emscripten.org/), but any language (e.g. Rust, Kotlin, Python) and any compiler that creates [WASI](https://github.com/bytecodealliance/wasi) bindings would work with the same JVM integration. It's pretty simple:
 
