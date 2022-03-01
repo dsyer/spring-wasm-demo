@@ -1,6 +1,5 @@
 package com.example.driver;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.function.Predicate;
@@ -12,20 +11,13 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.gateway.handler.AsyncPredicate;
 import org.springframework.cloud.gateway.handler.predicate.AbstractRoutePredicateFactory;
 import org.springframework.cloud.gateway.handler.predicate.ReadBodyRoutePredicateFactory;
-import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StreamUtils;
 import org.springframework.web.server.ServerWebExchange;
 
-import io.github.kawamuray.wasmtime.Engine;
-import io.github.kawamuray.wasmtime.Linker;
-import io.github.kawamuray.wasmtime.Store;
-import io.github.kawamuray.wasmtime.Val;
-import io.github.kawamuray.wasmtime.wasi.WasiCtx;
-import io.github.kawamuray.wasmtime.wasi.WasiCtxBuilder;
 import reactor.core.publisher.Mono;
 
 @SpringBootApplication
@@ -38,33 +30,25 @@ class DemoApplication {
 }
 
 @Component
-class CustomWASMPredicate extends AbstractRoutePredicateFactory<CustomWASMPredicate.Config> {
+class CustomWASMPredicate extends AbstractRoutePredicateFactory<CustomWASMPredicate.Config> implements AutoCloseable {
 
 	private ServerCodecConfigurer codecConfigurer;
+	private WasmLoader wasmLoader;
 
 	public CustomWASMPredicate(ServerCodecConfigurer codecConfigurer) {
 		super(Config.class);
 		this.codecConfigurer = codecConfigurer;
+		this.wasmLoader = new WasmLoader();
+	}
+
+	@Override
+	public void close() throws Exception {
+		this.wasmLoader.close();
 	}
 
 	private boolean matches(Config config, ServerHttpRequest request, byte[] data) {
-		WasiCtx wasi = new WasiCtxBuilder().inheritStdio().inheritStderr().inheritStdin().build();
-		var store = Store.withoutData(wasi);
-		Engine engine = store.engine();
-		Linker linker = new Linker(store.engine());
-		WasiCtx.addToLinker(linker);
-		try {
-			byte[] wasm = StreamUtils.copyToByteArray(new ClassPathResource("message.wasm").getInputStream());
-			var module = io.github.kawamuray.wasmtime.Module.fromBinary(engine, wasm);
-			linker.module(store, "", module);
-			var memory = linker.get(store, "", "memory").get().memory();
-			SpringMessage msg = message(request, data);
-			var buffer = memory.buffer(store);
-			var bytes = msg.toByteArray();
-			buffer.put(bytes);
-			return (int) linker.get(store, "", "predicate").get().func().call(store, Val.fromI32(0), Val.fromI32(bytes.length))[0].getValue() != 0;
-		} catch (IOException e) {
-			throw new IllegalStateException("Cannot load WASM", e);
+		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
+			return runner == null ? false : runner.call("predicate", message(request, data), Boolean.class);
 		}
 	}
 
@@ -100,14 +84,23 @@ class CustomWASMPredicate extends AbstractRoutePredicateFactory<CustomWASMPredic
 
 	@Override
 	public List<String> shortcutFieldOrder() {
-		return Arrays.asList("readBody");
+		return Arrays.asList("resource", "readBody");
 	}
 
 	public static class Config {
 		private boolean readBody = false;
+		private Resource resource;
 
 		public boolean isReadBody() {
 			return readBody;
+		}
+
+		public Resource getResource() {
+			return resource;
+		}
+
+		public void setResource(Resource resource) {
+			this.resource = resource;
 		}
 
 		public void setReadBody(boolean readBody) {

@@ -6,6 +6,7 @@ target/
 dependency-reduced-pom.xml
 .venv/
 *.wat
+tmp/
 
 ### STS ###
 .apt_generated

@@ -5,6 +5,6 @@ spring:
         - uri: https://github.com
           predicates:
             - Path=/github/**
-            - CustomWASMPredicate=
+            - CustomWASMPredicate=message.wasm
           filters:
             - StripPrefix=1
