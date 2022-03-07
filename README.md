@@ -6,7 +6,8 @@ Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`
 * [ ] Extend to filters as well as predicates.
 * [x] Resource management (prevent leaks and re-use instances of the WASM). Maybe could be improved still, but the things that can be shared and now shared, and everything is disposed.
 * [x] Break out WasmLoader into a library JAR
-* [ ] Add Spring Cloud Function sample
+* [x] Add Spring Cloud Function sample
+* [ ] Automate build of WASMs
 * [ ] Pass some configuration down from the JVM into the WASM
 * [ ] See if there is a way to support a subset of [proxy-wasm](https://github.com/proxy-wasm/spec).
 
@@ -122,7 +123,7 @@ buffer echo(buffer input) {
 It can be compiled to a WASM like this:
 
 ```
-$ emcc -mmultivalue -Xclang -target-abi -Xclang experimental-mv -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_echo_']" -Wl,--no-entry echo.c -o echo.wasm
+$ emcc -mmultivalue -Xclang -target-abi -Xclang experimental-mv -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_echo']" -Wl,--no-entry echo.c -o echo.wasm
 ```
 
 If you call that function in the JVM you get back an array of `Val` of length 2 - the pointer and the length.
