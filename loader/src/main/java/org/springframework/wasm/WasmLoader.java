@@ -1,4 +1,4 @@
-package com.example.driver;
+package org.springframework.wasm;
 
 import java.io.IOException;
 import java.util.Map;

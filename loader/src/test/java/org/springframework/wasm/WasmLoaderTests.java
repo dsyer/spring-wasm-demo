@@ -1,6 +1,8 @@
-package com.example.driver;
+package org.springframework.wasm;
 
 import static org.assertj.core.api.Assertions.assertThat;
+
+import com.example.driver.SpringMessage;
 
 import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;

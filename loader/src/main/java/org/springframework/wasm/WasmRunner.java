@@ -1,4 +1,4 @@
-package com.example.driver;
+package org.springframework.wasm;
 
 import java.lang.reflect.Method;
 
