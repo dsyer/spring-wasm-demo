@@ -5,6 +5,8 @@ Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`
 * [x] There is only one "plugin" in this project but its location could be parameterized (it's now a resource location in the predicate config).
 * [ ] Extend to filters as well as predicates.
 * [x] Resource management (prevent leaks and re-use instances of the WASM). Maybe could be improved still, but the things that can be shared and now shared, and everything is disposed.
+* [x] Break out WasmLoader into a library JAR
+* [ ] Add Spring Cloud Function sample
 * [ ] Pass some configuration down from the JVM into the WASM
 * [ ] See if there is a way to support a subset of [proxy-wasm](https://github.com/proxy-wasm/spec).
 
@@ -34,10 +36,9 @@ The implementation uses [protobufs](https://developers.google.com/protocol-buffe
 
 ## Playing with JShell
 
-Here's a JShell REPL session that shows how you can play with the WASM module:
+Here's a JShell REPL session that shows how you can play with the WASM module. Start with `jbang --interactive loader.jsh`:
 
 ```java
-jshell> /env -class-path target/wasmtime-0.0.1-SNAPSHOT.jar
 jshell> import org.springframework.util.*;
   import org.springframework.core.io.*;
   import io.github.kawamuray.wasmtime.*;
@@ -47,7 +48,7 @@ jshell> WasiCtx wasi = new WasiCtxBuilder().inheritStdio().inheritStderr().inher
   Engine engine = store.engine();
   Linker linker = new Linker(store.engine());
   WasiCtx.addToLinker(linker);
-  byte[] wasm = StreamUtils.copyToByteArray(new ClassPathResource("message.wasm").getInputStream());
+  byte[] wasm = StreamUtils.copyToByteArray(new FileSystemResource("loader/src/test/resources/message.wasm").getInputStream());
   var module = io.github.kawamuray.wasmtime.Module.fromBinary(engine, wasm);
   linker.module(store, "", module);
 ```
@@ -59,18 +60,28 @@ You need WASM-compiled libraries for `protobuf` and `protobuf-c`. Those require 
 ```
 $ mkdir tmp
 $ cd tmp
-$ curl https://github.com/dsyer/protobuf-wasm/releases/download/v3.12.4-0.0.1/protobuf-wasm.tgz | tar -xzvf -
+$ curl -L https://github.com/dsyer/protobuf-wasm/releases/download/v3.12.4-0.0.1/protobuf-wasm.tgz | tar -xzvf -
 $ cd ..
 ```
 
-Then you can compile the example predicate. Start from the root of the source tree.
+Then you can compile the example WASMs. Start from the root of the sample. For `gateway`.
 
 ```
 $ mkdir -p tmp/src
-$ cp src/main/proto/* tmp/src
+$ cp gateway/src/main/proto/* tmp/src
 $ cd tmp/src
-$ emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate']" -Wl,--no-entry message.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm)
-$ cp message.wasm ../../src/main/resources
+$ emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+$ cp message.wasm ../../gateway/src/main/resources
+```
+
+and for `function`:
+
+```
+$ mkdir -p tmp/src
+$ cp function/src/main/proto/* tmp/src
+$ cd tmp/src
+$ emcc -I ../include -Os -mmultivalue -Xclang -target-abi -Xclang experimental-mv -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+$ cp message.wasm ../../function/src/main/resources
 ```
 
 ## Functions Returning Pointers

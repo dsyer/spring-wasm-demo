@@ -7,8 +7,8 @@
 		<version>2.6.3</version>
 		<relativePath /> <!-- lookup parent from repository -->
 	</parent>
-	<groupId>org.springframework.experimental</groupId>
-	<artifactId>spring-wasm-loader</artifactId>
+	<groupId>com.example</groupId>
+	<artifactId>spring-wasmtime-function-sample</artifactId>
 	<version>0.0.1-SNAPSHOT</version>
 	<name>demo</name>
 	<description>Demo project for Spring Boot</description>
@@ -19,18 +19,13 @@
 	</properties>
 	<dependencies>
 		<dependency>
-			<groupId>org.springframework</groupId>
-			<artifactId>spring-core</artifactId>
+			<groupId>org.springframework.cloud</groupId>
+			<artifactId>spring-cloud-starter-function-webflux</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>io.github.kawamuray.wasmtime</groupId>
-			<artifactId>wasmtime-java</artifactId>
-			<version>0.8.0</version>
-		</dependency>
-		<dependency>
-			<groupId>com.google.protobuf</groupId>
-			<artifactId>protobuf-java</artifactId>
-			<version>3.18.0</version>
+			<groupId>org.springframework.experimental</groupId>
+			<artifactId>spring-wasm-loader</artifactId>
+			<version>${project.version}</version>
 		</dependency>
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
@@ -38,9 +33,24 @@
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
+	<dependencyManagement>
+		<dependencies>
+			<dependency>
+				<groupId>org.springframework.cloud</groupId>
+				<artifactId>spring-cloud-dependencies</artifactId>
+				<version>${spring-cloud.version}</version>
+				<type>pom</type>
+				<scope>import</scope>
+			</dependency>
+		</dependencies>
+	</dependencyManagement>
 
 	<build>
 		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+			</plugin>
 			<plugin>
 				<groupId>org.xolstice.maven.plugins</groupId>
 				<artifactId>protobuf-maven-plugin</artifactId>
@@ -49,7 +59,6 @@
 					<execution>
 						<goals>
 							<goal>compile</goal>
-							<goal>test-compile</goal>
 						</goals>
 					</execution>
 				</executions>

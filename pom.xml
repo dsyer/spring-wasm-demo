@@ -15,8 +15,9 @@
 	<name>Parent Demo</name>
 
 	<modules>
-		<module>gateway</module>
 		<module>loader</module>
+		<module>gateway</module>
+		<module>function</module>
 	</modules>
 
 	<properties>

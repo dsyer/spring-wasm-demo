@@ -27,8 +27,8 @@
 			<artifactId>spring-boot-starter-webflux</artifactId>
 		</dependency>
 		<dependency>
-			<groupId>com.example</groupId>
-			<artifactId>spring-wasmtime-loader</artifactId>
+			<groupId>org.springframework.experimental</groupId>
+			<artifactId>spring-wasm-loader</artifactId>
 			<version>${project.version}</version>
 		</dependency>
 		<dependency>
