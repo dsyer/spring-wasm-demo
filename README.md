@@ -37,7 +37,7 @@ The implementation uses [protobufs](https://developers.google.com/protocol-buffe
 
 ## Playing with JShell
 
-Here's a JShell REPL session that shows how you can play with the WASM module. Start with `jbang --interactive loader.jsh`:
+Here's a JShell REPL session that shows how you can play with the WASM module. Start with `./loader.jsh`:
 
 ```java
 jshell> import org.springframework.util.*;
@@ -127,3 +127,120 @@ $ emcc -mmultivalue -Xclang -target-abi -Xclang experimental-mv -Os -s STANDALON
 ```
 
 If you call that function in the JVM you get back an array of `Val` of length 2 - the pointer and the length.
+
+## Protobufs for Generic Objects
+
+Create a descriptor:
+
+```
+$ protoc --proto_path=loader/src/test/proto --descriptor_set_out=loader/target/proto.desc loader/src/test/proto/message.proto 
+```
+
+Build an instance dynamically (i.e. without compiling to Java or class files):
+
+```java
+jshell> import com.google.protobuf.*;
+   import com.google.protobuf.Descriptors.*;
+   import com.google.protobuf.DescriptorProtos.*;
+jshell> var files = FileDescriptorSet.parseFrom(new FileSystemResource("loader/target/proto.desc").getInputStream());
+   var file = files.getFileList().get(0);
+   var desc = Descriptors.FileDescriptor.buildFrom(file, new Descriptors.FileDescriptor[0]);
+   var type = desc.findMessageTypeByName("SpringMessage");
+jshell> var dyno = DynamicMessage.newBuilder(type);
+jshell> dyno.setField(type.findFieldByName("payload"), ByteString.copyFrom("Hello World".getBytes()));
+jshell> var entry = MapEntry.newDefaultInstance(type.findFieldByName("headers").getMessageType(), WireFormat.FieldType.STRING, "", WireFormat.FieldType.STRING, "");
+jshell> dyno.setField(type.findFieldByName("headers"),
+    Arrays.asList(entry.toBuilder().setKey("one").setValue("two").build(),
+    entry.toBuilder().setKey("three").setValue("four").build()));
+jshell> var msg = dyno.build()
+msg ==> payload: "Hello World"
+headers {
+  key: "one"
+  value: "two"
+}
+headers {
+  key: "three"
+  value: "four"
+}
+```
+
+You can even sythesize the whole description with a bit of work (it gets hard with nested types):
+
+```java
+jshell> var proto = DescriptorProto.newBuilder().setName("MyType").addField(FieldDescriptorProto.newBuilder().setName("value").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(1)).build();
+jshell> var desc = Descriptors.FileDescriptor.buildFrom(FileDescriptorProto.newBuilder().setName("my.proto").addMessageType(proto).build(), new Descriptors.FileDescriptor[0]);
+jshell> var type = desc.findMessageTypeByName("MyType");
+jshell> var dyno = DynamicMessage.newBuilder(type);
+jshell> dyno.setField(type.findFieldByName("value"), "Hello World");
+jshell> var msg = dyno.build()
+msg ==> value: "Hello World"
+```
+
+A map type (string to string):
+
+```java
+jshell> var value = DescriptorProto.newBuilder().setName("Value").setOptions(MessageOptions.newBuilder().setMapEntry(true)).addField(FieldDescriptorProto.newBuilder().setName("key").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(1)).addField(FieldDescriptorProto.newBuilder().setName("value").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(2)).build()
+jshell> var desc = Descriptors.FileDescriptor.buildFrom(FileDescriptorProto.newBuilder().setName("my.proto").addMessageType(value).build(), new Descriptors.FileDescriptor[0])
+jshell> var type = desc.findMessageTypeByName("Value")
+jshell> var dyno = DynamicMessage.newBuilder(type);
+jshell> dyno.setField(type.findFieldByName("key"), "msg");
+   dyno.setField(type.findFieldByName("value"), "Hello World");
+$50 ==> key: "msg"
+value: "Hello World"
+```
+
+A custom type with a repeated (muliple entries) map field:
+
+```java
+jshell> var proto = DescriptorProto.newBuilder().setName("MyType").addField(FieldDescriptorProto.newBuilder().setLabel(FieldDescriptorProto.Label.LABEL_REPEATED).setName("values").setType(FieldDescriptorProto.Type.TYPE_MESSAGE).setNumber(1).setTypeName("Value").build()).build();
+jshell> var value = DescriptorProto.newBuilder().setName("Value").setOptions(MessageOptions.newBuilder().setMapEntry(true)).addField(FieldDescriptorProto.newBuilder().setName("key").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(1)).addField(FieldDescriptorProto.newBuilder().setName("value").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(2)).build();
+jshell> var desc = Descriptors.FileDescriptor.buildFrom(FileDescriptorProto.newBuilder().setName("my.proto").addMessageType(proto).addMessageType(value).build(), new Descriptors.FileDescriptor[0]);
+```
+
+A generic object like a JSON could be an array of polymorphic objects of one of these types, maybe?
+
+```java
+jshell> var value = DescriptorProto.newBuilder().setName("Value").setOptions(MessageOptions.newBuilder().setMapEntry(true)).addField(FieldDescriptorProto.newBuilder().setName("key").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(1)).addField(FieldDescriptorProto.newBuilder().setName("value").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(2)).build();
+jshell> var object = DescriptorProto.newBuilder().setName("Object").setOptions(MessageOptions.newBuilder().setMapEntry(true)).addField(FieldDescriptorProto.newBuilder().setName("key").setType(FieldDescriptorProto.Type.TYPE_STRING).setNumber(1)).addField(FieldDescriptorProto.newBuilder().setLabel(FieldDescriptorProto.Label.LABEL_REPEATED).setName("value").setType(FieldDescriptorProto.Type.TYPE_MESSAGE).setTypeName("Value").setNumber(2)).build();
+jshell> var desc = Descriptors.FileDescriptor.buildFrom(FileDescriptorProto.newBuilder().setName("my.proto").addMessageType(object).addMessageType(value).build(), new Descriptors.FileDescriptor[0]);
+jshell> var type = desc.findMessageTypeByName("Value");
+jshell> var dyno = DynamicMessage.newBuilder(desc.findMessageTypeByName("Object"));
+jshell> var entry = MapEntry.newDefaultInstance(type, WireFormat.FieldType.STRING, "", WireFormat.FieldType.STRING, "");
+jshell> dyno.setField(dyno.getDescriptorForType().findFieldByName("key"), "obj")
+   .setField(dyno.getDescriptorForType().findFieldByName("value"), 
+      Arrays.asList(entry.toBuilder().setKey("msg").setValue("Hello World").build(),
+      entry.toBuilder().setKey("gsm").setValue("Bye Bye").build()));
+$60 ==> key: "obj"
+value {
+  key: "gsm"
+  value: "Bye Bye"
+}
+value {
+  key: "msg"
+  value: "Hello World"
+}
+jshell> dyno.build().toByteArray()
+$61 ==> byte[41] { 10, 3, 111, 98, 106, 18, 18, 10, 3, 109, 115, 103, 18, 11, 72, 101, 108, 108, 111, 32, 87, 111, 114, 108, 100, 18, 13, 10, 3, 103, 115, 109, 18, 7, 66, 121, 101, 32, 66, 121, 101 }
+```
+
+The byte encoding breaks down as
+
+* 10: index=1, type=2 -- (index<<3) | type, 2 is "length delimited"
+* 3: length
+* `[111, 98, 106]`: "obj"
+* 18: index=2, type=2
+* 18: length (to the end of "Hello World")
+* 10: index=1, type=2
+* 3: length
+* `[109, 115, 103]`: "msg"
+* 18: index=2, type=2
+* 11: length
+* `[72, 101, ..., 100]`: "Hello World"
+* 18: index=2, type=2
+* 13: length (to the end of "Bye Bye")
+* 10: index=1, type=2
+* 3: length
+* `[103, 115, 109]`: "gsm"
+* 18: index=2, type=2
+* 7: length
+* `[66, 121, 101, 32, 66, 121, 101]`: "Bye Bye"
