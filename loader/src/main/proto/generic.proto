@@ -1,0 +1,28 @@
+syntax = "proto3";
+option java_multiple_files = true;
+option java_package = "org.springframework.wasm";
+
+import "google/protobuf/struct.proto";
+
+message GenericMessage {
+    map<string, GenericValue> fields = 1;
+}
+
+message GenericList {
+    repeated GenericValue values = 1;
+}
+
+message GenericValue {
+    oneof value {
+        google.protobuf.NullValue null_val = 1;
+        double double_val = 2;
+        string string_val = 3;
+        bool bool_val = 4;
+        GenericMessage message_val = 5;
+        GenericList list_val = 6;
+        bytes bytes_val = 7;
+        float float_val = 8;
+        int32 int_val = 9;
+        int64 long_val = 10;
+    }
+}
