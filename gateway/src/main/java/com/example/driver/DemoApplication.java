@@ -1,16 +1,21 @@
 package com.example.driver;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.function.Predicate;
 
-import com.google.protobuf.ByteString;
-
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.gateway.filter.GatewayFilter;
+import org.springframework.cloud.gateway.filter.GatewayFilterChain;
+import org.springframework.cloud.gateway.filter.NettyRoutingFilter;
+import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
+import org.springframework.cloud.gateway.filter.factory.rewrite.ModifyResponseBodyGatewayFilterFactory;
 import org.springframework.cloud.gateway.handler.AsyncPredicate;
 import org.springframework.cloud.gateway.handler.predicate.AbstractRoutePredicateFactory;
 import org.springframework.cloud.gateway.handler.predicate.ReadBodyRoutePredicateFactory;
+import org.springframework.core.Ordered;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.codec.ServerCodecConfigurer;
@@ -20,6 +25,9 @@ import org.springframework.wasm.WasmLoader;
 import org.springframework.wasm.WasmRunner;
 import org.springframework.web.server.ServerWebExchange;
 
+import com.example.driver.CustomWASMPredicate.Config;
+import com.google.protobuf.ByteString;
+
 import reactor.core.publisher.Mono;
 
 @SpringBootApplication
@@ -27,6 +35,92 @@ class DemoApplication {
 
 	public static void main(String[] args) throws Exception {
 		SpringApplication.run(DemoApplication.class, args);
+	}
+
+}
+
+@Component
+class CustomWASMResponseFilter extends AbstractGatewayFilterFactory<CustomWASMPredicate.Config>
+		implements AutoCloseable {
+
+	private WasmLoader wasmLoader;
+	private ModifyResponseBodyGatewayFilterFactory filter;
+
+	public CustomWASMResponseFilter(ServerCodecConfigurer codecConfigurer) {
+		super(Config.class);
+		this.wasmLoader = new WasmLoader();
+		this.filter = new ModifyResponseBodyGatewayFilterFactory(codecConfigurer.getReaders(), Collections.emptySet(),
+				Collections.emptySet());
+	}
+
+	private byte[] response(ServerWebExchange exchange, byte[] body) {
+		HttpHeaders headers = (HttpHeaders) exchange.getResponse().getHeaders();
+		for (String name : headers.keySet()) {
+			exchange.getResponse().getHeaders().put(name, headers.get(name));
+		}
+		exchange.getResponse().getHeaders().add("one", "two");
+		return body;
+	}
+
+	@Override
+	public GatewayFilter apply(Config config) {
+		if (config.isReadBody()) {
+			ModifyResponseBodyGatewayFilterFactory.Config bodyConfig = new ModifyResponseBodyGatewayFilterFactory.Config();
+			bodyConfig.setRewriteFunction(byte[].class, byte[].class, (exchange, body) -> {
+				return Mono.just(response(exchange, body));
+			});
+			GatewayFilter bodyFilter = filter.apply(bodyConfig);
+			return bodyFilter;
+		} else {
+			return (exchange, chain) -> {
+				response(exchange, new byte[0]);
+				return chain.filter(exchange);
+			};
+		}
+	}
+
+	@Override
+	public void close() throws Exception {
+		this.wasmLoader.close();
+	}
+
+	@Override
+	public List<String> shortcutFieldOrder() {
+		return Arrays.asList("resource", "readBody");
+	}
+
+}
+
+@Component
+class CustomWASMRequestFilter extends AbstractGatewayFilterFactory<CustomWASMPredicate.Config>
+		implements AutoCloseable {
+
+	private WasmLoader wasmLoader;
+
+	public CustomWASMRequestFilter(ServerCodecConfigurer codecConfigurer) {
+		super(Config.class);
+		this.wasmLoader = new WasmLoader();
+	}
+
+	private ServerHttpRequest request(ServerHttpRequest request) {
+		return request.mutate().build();
+	}
+
+	@Override
+	public GatewayFilter apply(Config config) {
+		return (exchange, chain) -> {
+			return chain.filter(exchange.mutate().request(request(exchange.getRequest())).build());
+		};
+	}
+
+	@Override
+	public void close() throws Exception {
+		this.wasmLoader.close();
+	}
+
+	@Override
+	public List<String> shortcutFieldOrder() {
+		return Arrays.asList("resource", "readBody");
 	}
 
 }
@@ -50,18 +144,8 @@ class CustomWASMPredicate extends AbstractRoutePredicateFactory<CustomWASMPredic
 
 	private boolean matches(Config config, ServerHttpRequest request, byte[] data) {
 		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
-			return runner == null ? false : runner.call("predicate", message(request, data), Boolean.class);
+			return runner == null ? false : runner.call("predicate", MessageUtils.fromRequest(request.getHeaders(), data), Boolean.class);
 		}
-	}
-
-	private SpringMessage message(ServerHttpRequest request, byte[] data) {
-		SpringMessage.Builder msg = SpringMessage.newBuilder();
-		HttpHeaders headers = request.getHeaders();
-		for (String key : headers.keySet()) {
-			msg.putHeaders(key, headers.getFirst(key));
-		}
-		msg.setPayload(ByteString.copyFrom(data));
-		return msg.build();
 	}
 
 	@Override

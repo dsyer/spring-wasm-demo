@@ -8,3 +8,15 @@ spring:
             - CustomWASMPredicate=message.wasm
           filters:
             - StripPrefix=1
+        - uri: https://httpbin.org
+          predicates:
+            - Path=/response/**
+          filters:
+            - CustomWASMResponseFilter
+            - StripPrefix=1
+        - uri: https://httpbin.org
+          predicates:
+            - Path=/request/**
+          filters:
+            - CustomWASMRequestFilter
+            - StripPrefix=1
