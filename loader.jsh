@@ -2,4 +2,4 @@
 
 //DEPS org.springframework.experimental:spring-wasm-loader:0.0.1-SNAPSHOT
 
-System.out.println("Run this file with: jbang --interactive loader.jsh");
+System.out.println("Ready...");

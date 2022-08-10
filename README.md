@@ -7,6 +7,8 @@ Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`
 * [x] Resource management (prevent leaks and re-use instances of the WASM). Maybe could be improved still, but the things that can be shared and now shared, and everything is disposed.
 * [x] Break out WasmLoader into a library JAR
 * [x] Add Spring Cloud Function sample
+* [ ] Support malloc and free as exports so host can manage memory
+* [ ] Switch to output pointer instead of multivalue (better for polyglot)
 * [ ] Automate build of WASMs
 * [ ] Pass some configuration down from the JVM into the WASM
 * [ ] See if there is a way to support a subset of [proxy-wasm](https://github.com/proxy-wasm/spec).
@@ -71,7 +73,7 @@ Then you can compile the example WASMs. Start from the root of the sample. For `
 $ mkdir -p tmp/src
 $ cp gateway/src/main/proto/* tmp/src
 $ cd tmp/src
-$ emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+$ emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 $ cp message.wasm ../../gateway/src/main/resources
 ```
 

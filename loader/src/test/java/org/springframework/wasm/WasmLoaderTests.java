@@ -12,8 +12,17 @@ public class WasmLoaderTests {
 
 	private static final byte[] WAT_BYTES_REFLECT = ("(module"
 			+ "  (memory (export \"memory\") 2 3)"
-			+ "  (func (export \"add\") (param i32) (param i32) (result i32)"
+			+ "  (func (export \"reflect\") (param i32) (param i32) (result i32)"
 			+ "    local.get 0)"
+			+ ")").getBytes();
+
+	private static final byte[] WAT_BYTES_MALLOC = ("(module"
+			+ "  (memory (export \"memory\") 2 3)"
+			+ "  (func (export \"reflect\") (param i32) (param i32) (result i32)"
+			+ "    local.get 0)"
+			+ "  (func (export \"malloc\") (param i32) (result i32)"
+			+ "    i32.const 16)"
+			+ "  (func (export \"free\") (param i32))"
 			+ ")").getBytes();
 
 	private static final byte[] WAT_BYTES_MULTI = ("(module"
@@ -50,8 +59,19 @@ public class WasmLoaderTests {
 		try (WasmLoader loader = new WasmLoader()) {
 			try (WasmRunner runner = loader.runner(new ByteArrayResource(WAT_BYTES_REFLECT))) {
 				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
-				int result = runner.call("add", message, Integer.class);
+				int result = runner.call("reflect", message, Integer.class);
 				assertThat(result).isEqualTo(0);
+			}
+		}
+	}
+
+	@Test
+	public void testMallocFree() throws Exception {
+		try (WasmLoader loader = new WasmLoader()) {
+			try (WasmRunner runner = loader.runner(new ByteArrayResource(WAT_BYTES_MALLOC))) {
+				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
+				int result = runner.call("reflect", message, Integer.class);
+				assertThat(result).isEqualTo(16);
 			}
 		}
 	}
@@ -60,8 +80,7 @@ public class WasmLoaderTests {
 	public void testTuple() throws Exception {
 		try (WasmLoader loader = new WasmLoader()) {
 			// This WASM has an "echo" function that returns a tuple of (pointer, len) so it
-			// can be
-			// unpacked into a protobuf Message
+			// can be unpacked into a protobuf Message
 			try (WasmRunner runner = loader.runner(new ByteArrayResource(WAT_BYTES_MULTI))) {
 				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
 				SpringMessage result = runner.call("echo", message, SpringMessage.class);
