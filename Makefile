@@ -17,7 +17,7 @@ $(build)/$(loader)/message.c:
 
 $(build)/$(loader)/$(wasm): $(build)/$(loader)/message.c $(build)/lib/libprotoc.a 
 	mkdir -p $(build)/$(loader)
-	cd $(build)/$(loader) && emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+	cd $(build)/$(loader) && emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 
 $(loader): $(build)/$(loader)/$(wasm)
 	cp $(build)/$(loader)/$(wasm) $(loader)/src/test/resources
@@ -28,7 +28,7 @@ $(build)/$(function)/message.c:
 
 $(build)/$(function)/$(wasm): $(build)/$(function)/message.c $(build)/lib/libprotoc.a 
 	mkdir -p $(build)/$(function)
-	cd $(build)/$(function) && emcc -I ../include -Os -mmultivalue -Xclang -target-abi -Xclang experimental-mv -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+	cd $(build)/$(function) && emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 
 $(function): $(build)/$(function)/$(wasm)
 	cp $(build)/$(function)/$(wasm) $(function)/src/main/resources
@@ -39,7 +39,7 @@ $(build)/$(gateway)/message.c:
 
 $(build)/$(gateway)/$(wasm): $(build)/$(gateway)/message.c $(build)/lib/libprotoc.a 
 	mkdir -p $(build)/$(gateway)
-	cd $(build)/$(gateway) && emcc -I ../include -Os -mmultivalue -Xclang -target-abi -Xclang experimental-mv -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+	cd $(build)/$(gateway) && emcc -I ../include -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 
 $(gateway): $(build)/$(gateway)/$(wasm)
 	cp $(build)/$(gateway)/$(wasm) $(gateway)/src/main/resources

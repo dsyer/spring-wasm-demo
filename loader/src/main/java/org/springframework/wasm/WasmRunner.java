@@ -2,11 +2,12 @@ package org.springframework.wasm;
 
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
+import java.util.Base64;
 import java.util.Optional;
 
-import com.google.protobuf.Message;
-
 import org.springframework.util.ReflectionUtils;
+
+import com.google.protobuf.Message;
 
 import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Linker;
@@ -49,36 +50,135 @@ public class WasmRunner implements AutoCloseable {
 	public <S extends Message, T> T call(String function, S message, Class<T> returnType) {
 		var memory = linker.get(store, "", "memory").get().memory();
 		var buffer = memory.buffer(store);
-		var bytes = message.toByteArray();
-		int input = malloc(buffer, bytes.length);
-		buffer.position(input);
-		buffer.put(bytes);
-		Val[] values = linker.get(store, "", function).get().func().call(store, Val.fromI32(input),
-				Val.fromI32(bytes.length));
-		Object obj = values[0].getValue();
-		if (returnType == Boolean.class) {
-			obj = (int) obj != 0;
-		} else if (Message.class.isAssignableFrom(returnType) && values.length > 1) {
-			int ptr = (int) obj;
-			int len = (int) values[1].getValue();
-			buffer.position(ptr);
-			byte[] output = new byte[len];
-			buffer.get(output);
-			try {
-				@SuppressWarnings("unchecked")
-				Class<Message> type = (Class<Message>) returnType;
-				Method method = ReflectionUtils.findMethod(type, "parseFrom", byte[].class);
-				obj = method.invoke(null, output);
-			} catch (Exception e) {
-				throw new IllegalStateException("Cannot unpack return from function: " + function + "() at " + ptr, e);
+		var input = new Wrapper(buffer, message.toByteArray());
+		input.bytes();
+		Object obj = null;
+		if (Message.class.isAssignableFrom(returnType)) {
+			var output = new Wrapper(buffer);
+			linker.get(store, "", function).get().func().call(store, Val.fromI32(output.ptr()),
+					Val.fromI32(input.ptr()));
+			obj = output.get(returnType);
+			output.free();
+		} else {
+			Val[] values = linker.get(store, "", function).get().func().call(store,
+					Val.fromI32(input.ptr()));
+			obj = values[0].getValue();
+			if (returnType == Boolean.class) {
+				obj = (int) obj != 0;
 			}
 		}
 		@SuppressWarnings("unchecked")
 		T result = (T) obj;
-		buffer.position(input);
-		buffer.put(new byte[bytes.length]);
-		free(input);
+		input.free();
 		return result;
+	}
+
+	class Wrapper {
+
+		private static final int SIZE = 8;
+		private byte[] bytes = null;
+		private ByteBuffer buffer;
+		private int data;
+		private int ptr;
+
+		public Wrapper(ByteBuffer buffer) {
+			this(buffer, null);
+		}
+
+		public byte[] bytes() {
+			int pos = this.buffer.position();
+			System.err.println("****** " + data());
+			System.err.println("***** " + len());
+			try {
+				buffer.position(data());
+				byte[] bytes = new byte[len()];
+				buffer.get(bytes);
+				System.err.println("**** " + Base64.getEncoder().encodeToString(bytes));
+				if (this.bytes != null) {
+					System.err.println("** " + Base64.getEncoder().encodeToString(this.bytes));
+					return this.bytes;
+				}
+				return bytes;
+			} finally {
+				this.buffer.position(pos);
+			}
+		}
+
+		public <T> T get(Class<T> returnType) {
+			byte[] bytes = bytes();
+			try {
+				@SuppressWarnings("unchecked")
+				Class<Message> type = (Class<Message>) returnType;
+				Method method = ReflectionUtils.findMethod(type, "parseFrom", byte[].class);
+				@SuppressWarnings("unchecked")
+				T result = (T) method.invoke(null, bytes);
+				return result;
+			} catch (Exception e) {
+				throw new IllegalStateException("Cannot unpack return from function at " + ptr, e);
+			}
+		}
+
+		public int len() {
+			if (bytes != null) {
+				return this.bytes.length;
+			}
+			int pos = this.buffer.position();
+			this.buffer.position(this.ptr + 4);
+			int result = this.buffer.getInt();
+			this.buffer.position(pos);
+			return result;
+		}
+
+		public int data() {
+			if (bytes != null) {
+				return this.data;
+			}
+			int pos = this.buffer.position();
+			this.buffer.position(this.ptr);
+			int result = this.buffer.getInt();
+			this.buffer.position(pos);
+			return result;
+		}
+
+		public int ptr() {
+			return this.ptr;
+		}
+
+		public Wrapper(ByteBuffer buffer, byte[] bytes) {
+			this.buffer = buffer;
+			int pos = this.buffer.position();
+			this.bytes = bytes;
+			this.ptr = malloc(buffer, SIZE);
+			this.buffer.position(this.ptr + SIZE);
+			if (bytes != null) {
+				this.data = malloc(buffer, bytes.length);
+				this.buffer.position(this.data);
+				this.buffer.put(bytes);
+				this.buffer.position(this.ptr);
+				this.buffer.asIntBuffer().put(new int[] { this.data, bytes.length });
+				System.err.println("&&&& " + this.data);
+				System.err.println("&&& " + bytes.length);
+				System.err.println("&&& " +this.ptr);
+				this.buffer.position(this.ptr);
+				var ints = this.buffer.asIntBuffer();
+				System.err.println("&& " + ints.get());
+				System.err.println("& " +ints.get());
+			}
+			this.buffer.position(pos);
+		}
+
+		public void free() {
+			if (bytes != null) {
+				this.buffer.position(this.data);
+				this.buffer.put(new byte[this.bytes.length]);
+				WasmRunner.this.free(this.data);
+				bytes = null;
+			}
+			this.buffer.position(this.ptr);
+			this.buffer.put(new byte[SIZE]);
+			WasmRunner.this.free(this.ptr);
+		}
+
 	}
 
 }

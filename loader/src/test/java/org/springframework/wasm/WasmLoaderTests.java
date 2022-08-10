@@ -11,14 +11,17 @@ import org.springframework.core.io.ClassPathResource;
 public class WasmLoaderTests {
 
 	private static final byte[] WAT_BYTES_REFLECT = ("(module"
+			+ "  (import \"env\" \"debug\" (func (param i32)))"
 			+ "  (memory (export \"memory\") 2 3)"
-			+ "  (func (export \"reflect\") (param i32) (param i32) (result i32)"
+			+ "  (func (export \"reflect\") (param i32) (result i32)"
+			+ "    local.get 0"
+			+ "    call 0"
 			+ "    local.get 0)"
 			+ ")").getBytes();
 
 	private static final byte[] WAT_BYTES_MALLOC = ("(module"
 			+ "  (memory (export \"memory\") 2 3)"
-			+ "  (func (export \"reflect\") (param i32) (param i32) (result i32)"
+			+ "  (func (export \"reflect\") (param i32) (result i32)"
 			+ "    local.get 0)"
 			+ "  (func (export \"malloc\") (param i32) (result i32)"
 			+ "    i32.const 16)"
@@ -27,9 +30,16 @@ public class WasmLoaderTests {
 
 	private static final byte[] WAT_BYTES_MULTI = ("(module"
 			+ "  (memory (export \"memory\") 2 3)"
-			+ "  (func (export \"echo\") (param i32) (param i32) (result i32) (result i32)"
+			+ "  (func (export \"echo\") (param i32) (param i32)"
 			+ "    local.get 0"
-			+ "    local.get 1)"
+			+ "    local.get 1"
+			+ "    i32.load"
+			+ "    i32.store"
+			+ "    local.get 0"
+			+ "    local.get 1"
+			+ "    i32.load offset=4"
+			+ "    i32.store offset=4"
+			+ "  )"
 			+ ")").getBytes();
 
 	@Test
@@ -50,6 +60,17 @@ public class WasmLoaderTests {
 				SpringMessage message = SpringMessage.newBuilder().putHeaders("two", "three").build();
 				boolean result = runner.call("predicate", message, Boolean.class);
 				assertThat(result).isFalse();
+			}
+		}
+	}
+
+	@Test
+	public void testPrecompiledFilter() throws Exception {
+		try (WasmLoader loader = new WasmLoader()) {
+			try (WasmRunner runner = loader.runner(new ClassPathResource("message.wasm"))) {
+				SpringMessage message = SpringMessage.newBuilder().putHeaders("two", "three").build();
+				SpringMessage result = runner.call("filter", message, SpringMessage.class);
+				assertThat(result.getHeadersMap()).containsKey("one");
 			}
 		}
 	}

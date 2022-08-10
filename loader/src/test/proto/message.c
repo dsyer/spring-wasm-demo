@@ -3,8 +3,18 @@
 #include <string.h>
 #include "message.pb-c.h"
 
-bool predicate(uint8_t *data, int len) {
-    SpringMessage *msg = spring_message__unpack(NULL, len, data);
+typedef struct _wrapper
+{
+    uint8_t *data;
+    size_t len;
+} Wrapper;
+
+void debug(size_t val);
+
+bool predicate(Wrapper input) {
+    debug(input.data);
+    debug(input.len);
+    SpringMessage *msg = spring_message__unpack(NULL, input.len, input.data);
     SpringMessage__HeadersEntry **headers = msg->headers;
     bool result = false;
     for (int i=0; i<msg->n_headers; i++) {
@@ -17,15 +27,20 @@ bool predicate(uint8_t *data, int len) {
     return result;
 }
 
-uint8_t *filter(uint8_t *data, int len) {
-    SpringMessage *msg = spring_message__unpack(NULL, len, data);
-    SpringMessage__HeadersEntry **headers = msg->headers;
-    	SpringMessage *result = malloc(sizeof(SpringMessage));
-	spring_message__init(result);
+Wrapper filter(Wrapper input)
+{
+    SpringMessage *msg = spring_message__unpack(NULL, input.len, input.data);
+    SpringMessage *result = malloc(sizeof(SpringMessage));
+    spring_message__init(result);
     result->payload = msg->payload;
     result->headers = msg->headers;
-    uint8_t *buffer = malloc(spring_message__get_packed_size(result));
+    result->n_headers = msg->n_headers;
+    int len = spring_message__get_packed_size(result);
+    uint8_t *buffer = malloc(len);
     spring_message__pack(result, buffer);
     spring_message__free_unpacked(msg, NULL);
-    return buffer;
+    Wrapper output = {
+        buffer,
+        len};
+    return output;
 }
