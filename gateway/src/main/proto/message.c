@@ -20,16 +20,26 @@ bool predicate(uint8_t *data, int len)
     return result;
 }
 
-uint8_t *filter(uint8_t *data, int len)
+typedef struct _wrapper
 {
-    SpringMessage *msg = spring_message__unpack(NULL, len, data);
-    SpringMessage__HeadersEntry **headers = msg->headers;
+    uint8_t *data;
+    int len;
+} Wrapper;
+
+Wrapper filter(Wrapper input)
+{
+    SpringMessage *msg = spring_message__unpack(NULL, input.len, input.data);
     SpringMessage *result = malloc(sizeof(SpringMessage));
     spring_message__init(result);
     result->payload = msg->payload;
     result->headers = msg->headers;
-    uint8_t *buffer = malloc(spring_message__get_packed_size(result));
+    result->n_headers = msg->n_headers;
+    int len = spring_message__get_packed_size(result);
+    uint8_t *buffer = malloc(len);
     spring_message__pack(result, buffer);
     spring_message__free_unpacked(msg, NULL);
-    return buffer;
+    Wrapper output = {
+        buffer,
+        len};
+    return output;
 }

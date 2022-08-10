@@ -8,25 +8,26 @@ import java.util.function.Predicate;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.gateway.filter.GatewayFilter;
-import org.springframework.cloud.gateway.filter.GatewayFilterChain;
-import org.springframework.cloud.gateway.filter.NettyRoutingFilter;
 import org.springframework.cloud.gateway.filter.factory.AbstractGatewayFilterFactory;
 import org.springframework.cloud.gateway.filter.factory.rewrite.ModifyResponseBodyGatewayFilterFactory;
 import org.springframework.cloud.gateway.handler.AsyncPredicate;
 import org.springframework.cloud.gateway.handler.predicate.AbstractRoutePredicateFactory;
 import org.springframework.cloud.gateway.handler.predicate.ReadBodyRoutePredicateFactory;
-import org.springframework.core.Ordered;
+import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.io.Resource;
 import org.springframework.http.HttpHeaders;
+import org.springframework.http.codec.HttpMessageReader;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 import org.springframework.wasm.WasmLoader;
 import org.springframework.wasm.WasmRunner;
+import org.springframework.web.reactive.function.server.HandlerStrategies;
+import org.springframework.web.reactive.function.server.ServerRequest;
 import org.springframework.web.server.ServerWebExchange;
 
 import com.example.driver.CustomWASMPredicate.Config;
-import com.google.protobuf.ByteString;
 
 import reactor.core.publisher.Mono;
 
@@ -95,22 +96,41 @@ class CustomWASMResponseFilter extends AbstractGatewayFilterFactory<CustomWASMPr
 class CustomWASMRequestFilter extends AbstractGatewayFilterFactory<CustomWASMPredicate.Config>
 		implements AutoCloseable {
 
+	private static String ATTR = "WASM_CACHED_REQUEST";
 	private WasmLoader wasmLoader;
+	private final List<HttpMessageReader<?>> messageReaders = HandlerStrategies.withDefaults().messageReaders();
 
 	public CustomWASMRequestFilter(ServerCodecConfigurer codecConfigurer) {
 		super(Config.class);
 		this.wasmLoader = new WasmLoader();
 	}
 
-	private ServerHttpRequest request(ServerHttpRequest request) {
-		return request.mutate().build();
+	private ServerHttpRequest request(Config config, ServerHttpRequest request, byte[] data) {
+		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
+			return runner == null ? request
+					: MessageUtils.toRequest(request, runner.call("filter",
+							MessageUtils.fromRequest(request.getHeaders(), data), SpringMessage.class));
+		}
 	}
 
 	@Override
 	public GatewayFilter apply(Config config) {
-		return (exchange, chain) -> {
-			return chain.filter(exchange.mutate().request(request(exchange.getRequest())).build());
-		};
+		if (config.isReadBody()) {
+			return (exchange, chain) -> ServerWebExchangeUtils
+					.cacheRequestBodyAndRequest(exchange,
+							serverHttpRequest -> ServerRequest.create(exchange, messageReaders).bodyToMono(byte[].class).doOnNext(requestPayload -> exchange.getAttributes()
+							.put(ATTR, request(config, serverHttpRequest, requestPayload))).then(Mono.defer(() -> {
+								ServerHttpRequest cachedRequest = exchange.getAttribute(ATTR);
+								Assert.notNull(cachedRequest, "cache request shouldn't be null");
+								exchange.getAttributes().remove(ATTR);
+								return chain.filter(exchange.mutate().request(cachedRequest).build());
+							})));
+		} else {
+			return (exchange, chain) -> {
+				return chain
+						.filter(exchange.mutate().request(request(config, exchange.getRequest(), new byte[0])).build());
+			};
+		}
 	}
 
 	@Override
@@ -144,7 +164,8 @@ class CustomWASMPredicate extends AbstractRoutePredicateFactory<CustomWASMPredic
 
 	private boolean matches(Config config, ServerHttpRequest request, byte[] data) {
 		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
-			return runner == null ? false : runner.call("predicate", MessageUtils.fromRequest(request.getHeaders(), data), Boolean.class);
+			return runner == null ? false
+					: runner.call("predicate", MessageUtils.fromRequest(request.getHeaders(), data), Boolean.class);
 		}
 	}
 

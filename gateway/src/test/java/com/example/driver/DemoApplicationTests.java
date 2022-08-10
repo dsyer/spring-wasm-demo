@@ -33,4 +33,13 @@ public class DemoApplicationTests {
 			.expectBody(String.class).value(value -> assertThat(value).isNotEmpty());
 	}
 
+	@Test
+	void request() {
+		webTestClient
+			.get().uri("/request/")
+			.header("one", "two")
+			.exchange()
+			.expectStatus().isOk();
+	}
+
 }

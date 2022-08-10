@@ -31,4 +31,15 @@ public class WasmLoaderTests {
 		}
 	}
 
+	@Test
+	public void testPrecompiledFilter() throws Exception {
+		try (WasmLoader loader = new WasmLoader()) {
+			try (WasmRunner runner = loader.runner(new ClassPathResource("message.wasm"))) {
+				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
+				SpringMessage result = runner.call("filter", message, SpringMessage.class);
+				assertThat(result.getHeadersMap()).containsKey("one");
+			}
+		}
+	}
+
 }

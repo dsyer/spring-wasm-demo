@@ -18,5 +18,5 @@ spring:
           predicates:
             - Path=/request/**
           filters:
-            - CustomWASMRequestFilter
+            - CustomWASMRequestFilter=message.wasm,false
             - StripPrefix=1
