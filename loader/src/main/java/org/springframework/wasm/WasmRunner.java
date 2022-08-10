@@ -1,6 +1,7 @@
 package org.springframework.wasm;
 
 import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.Optional;
 
 import com.google.protobuf.Message;
@@ -29,11 +30,11 @@ public class WasmRunner implements AutoCloseable {
 		}
 	}
 
-	private int malloc(int size) {
+	private int malloc(ByteBuffer buffer, int size) {
 		Optional<Extern> func = linker.get(store, "", "malloc");
 		if (func.isEmpty()) {
 			// If malloc is not provided we can cross fingers and hope this works
-			return 0;
+			return buffer.position();
 		}
 		return (int) func.get().func().call(store, Val.fromI32(size))[0].getValue();
 	}
@@ -49,7 +50,7 @@ public class WasmRunner implements AutoCloseable {
 		var memory = linker.get(store, "", "memory").get().memory();
 		var buffer = memory.buffer(store);
 		var bytes = message.toByteArray();
-		int input = malloc(bytes.length);
+		int input = malloc(buffer, bytes.length);
 		buffer.position(input);
 		buffer.put(bytes);
 		Val[] values = linker.get(store, "", function).get().func().call(store, Val.fromI32(input),

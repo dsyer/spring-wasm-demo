@@ -9,7 +9,7 @@ Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`
 * [x] Add Spring Cloud Function sample
 * [ ] Support malloc and free as exports so host can manage memory
 * [ ] Switch to output pointer instead of multivalue (better for polyglot)
-* [ ] Automate build of WASMs
+* [x] Automate build of WASMs
 * [ ] Pass some configuration down from the JVM into the WASM
 * [ ] See if there is a way to support a subset of [proxy-wasm](https://github.com/proxy-wasm/spec).
 
