@@ -2,7 +2,7 @@ package org.springframework.wasm;
 
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
-import java.util.Base64;
+import java.nio.ByteOrder;
 import java.util.Optional;
 
 import org.springframework.util.ReflectionUtils;
@@ -87,15 +87,11 @@ public class WasmRunner implements AutoCloseable {
 
 		public byte[] bytes() {
 			int pos = this.buffer.position();
-			System.err.println("****** " + data());
-			System.err.println("***** " + len());
 			try {
 				buffer.position(data());
 				byte[] bytes = new byte[len()];
 				buffer.get(bytes);
-				System.err.println("**** " + Base64.getEncoder().encodeToString(bytes));
 				if (this.bytes != null) {
-					System.err.println("** " + Base64.getEncoder().encodeToString(this.bytes));
 					return this.bytes;
 				}
 				return bytes;
@@ -155,14 +151,7 @@ public class WasmRunner implements AutoCloseable {
 				this.buffer.position(this.data);
 				this.buffer.put(bytes);
 				this.buffer.position(this.ptr);
-				this.buffer.asIntBuffer().put(new int[] { this.data, bytes.length });
-				System.err.println("&&&& " + this.data);
-				System.err.println("&&& " + bytes.length);
-				System.err.println("&&& " +this.ptr);
-				this.buffer.position(this.ptr);
-				var ints = this.buffer.asIntBuffer();
-				System.err.println("&& " + ints.get());
-				System.err.println("& " +ints.get());
+				this.buffer.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(new int[] { this.data, bytes.length });
 			}
 			this.buffer.position(pos);
 		}

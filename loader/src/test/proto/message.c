@@ -5,14 +5,15 @@
 
 typedef struct _wrapper
 {
-    uint8_t *data;
+    void *data;
     size_t len;
 } Wrapper;
 
 void debug(size_t val);
 
 bool predicate(Wrapper input) {
-    debug(input.data);
+    debug((size_t)&input);
+    debug((size_t)input.data);
     debug(input.len);
     SpringMessage *msg = spring_message__unpack(NULL, input.len, input.data);
     SpringMessage__HeadersEntry **headers = msg->headers;
@@ -36,7 +37,7 @@ Wrapper filter(Wrapper input)
     result->headers = msg->headers;
     result->n_headers = msg->n_headers;
     int len = spring_message__get_packed_size(result);
-    uint8_t *buffer = malloc(len);
+    void *buffer = malloc(len);
     spring_message__pack(result, buffer);
     spring_message__free_unpacked(msg, NULL);
     Wrapper output = {

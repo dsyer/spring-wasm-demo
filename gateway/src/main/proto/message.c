@@ -3,9 +3,15 @@
 #include <string.h>
 #include "message.pb-c.h"
 
-bool predicate(uint8_t *data, int len)
+typedef struct _wrapper
 {
-    SpringMessage *msg = spring_message__unpack(NULL, len, data);
+    uint8_t *data;
+    int len;
+} Wrapper;
+
+bool predicate(Wrapper input)
+{
+    SpringMessage *msg = spring_message__unpack(NULL, input.len, input.data);
     SpringMessage__HeadersEntry **headers = msg->headers;
     bool result = false;
     for (int i = 0; i < msg->n_headers; i++)
@@ -19,12 +25,6 @@ bool predicate(uint8_t *data, int len)
     spring_message__free_unpacked(msg, NULL);
     return result;
 }
-
-typedef struct _wrapper
-{
-    uint8_t *data;
-    int len;
-} Wrapper;
 
 Wrapper filter(Wrapper input)
 {

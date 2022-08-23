@@ -11,6 +11,7 @@ public class WasmLoaderTests {
 
 	@Test
 	public void testPrecompiledMatch() throws Exception {
+		System.err.println(new ClassPathResource("message.wasm").getURI());
 		try (WasmLoader loader = new WasmLoader()) {
 			try (WasmRunner runner = loader.runner(new ClassPathResource("message.wasm"))) {
 				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
