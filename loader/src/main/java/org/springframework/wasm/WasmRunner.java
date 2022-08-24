@@ -1,12 +1,12 @@
 package org.springframework.wasm;
 
-import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
 import java.util.Optional;
 
-import com.google.protobuf.Message;
-
-import org.springframework.util.ReflectionUtils;
-
+import io.cloudevents.CloudEvent;
+import io.cloudevents.core.format.EventFormat;
+import io.cloudevents.core.provider.EventFormatProvider;
+import io.cloudevents.jackson.JsonFormat;
 import io.github.kawamuray.wasmtime.Extern;
 import io.github.kawamuray.wasmtime.Linker;
 import io.github.kawamuray.wasmtime.Store;
@@ -22,11 +22,61 @@ public class WasmRunner implements AutoCloseable {
 		this.store = store;
 	}
 
+	public <T> T call(String function, CloudEvent input, Class<T> returnType) {
+		EventFormat format = EventFormatProvider.getInstance().resolveFormat(JsonFormat.CONTENT_TYPE);
+		var wasmInOutBuffer = byteBuffer();
+
+		// Setup wasm func input (put into byte buffer)
+		var inputBytes = format.serialize(input);
+		int inputBytesPtr = malloc(inputBytes.length);
+		wasmInOutBuffer.position(inputBytesPtr);
+		wasmInOutBuffer.put(inputBytes);
+
+		// Invoke wasm function
+		Val[] funcOutputValues = linker.get(store, "", function).get()
+				.func()
+				.call(store, Val.fromI32(inputBytesPtr), Val.fromI32(inputBytes.length));
+
+		// Extract wasm func output values
+		Object obj = funcOutputValues[0].getValue();
+		if (returnType == Boolean.class) {
+			obj = (int) obj != 0;
+		}
+		else if (CloudEvent.class.isAssignableFrom(returnType) && funcOutputValues.length > 1) {
+			try {
+				// Retrieve wasm func output (get from byte buffer)
+				int outputBytesPtr = (int) obj;
+				int outputBytesLen = (int) funcOutputValues[1].getValue();
+				byte[] outputBytes = new byte[outputBytesLen];
+				wasmInOutBuffer.position(outputBytesPtr);
+				wasmInOutBuffer.get(outputBytes);
+				obj = format.deserialize(outputBytes);
+			} catch (Exception ex) {
+				ex.printStackTrace();
+				obj = input;
+			}
+		}
+		@SuppressWarnings("unchecked")
+		T result = (T) obj;
+
+		// Cleanup after ourselves - clear buffer and free up malloc'ed memory
+		wasmInOutBuffer.position(inputBytesPtr);
+		wasmInOutBuffer.put(new byte[inputBytes.length]);
+		free(inputBytesPtr);
+
+		return result;
+	}
+
 	@Override
 	public void close() {
 		if (linker != null) {
 			linker.close();
 		}
+	}
+
+	private ByteBuffer byteBuffer() {
+		var memory = linker.get(store, "", "memory").get().memory();
+		return memory.buffer(store);
 	}
 
 	private int malloc(int size) {
@@ -44,40 +94,4 @@ public class WasmRunner implements AutoCloseable {
 			func.get().func().call(store, Val.fromI32(ptr));
 		}
 	}
-
-	public <S extends Message, T> T call(String function, S message, Class<T> returnType) {
-		var memory = linker.get(store, "", "memory").get().memory();
-		var buffer = memory.buffer(store);
-		var bytes = message.toByteArray();
-		int input = malloc(bytes.length);
-		buffer.position(input);
-		buffer.put(bytes);
-		Val[] values = linker.get(store, "", function).get().func().call(store, Val.fromI32(input),
-				Val.fromI32(bytes.length));
-		Object obj = values[0].getValue();
-		if (returnType == Boolean.class) {
-			obj = (int) obj != 0;
-		} else if (Message.class.isAssignableFrom(returnType) && values.length > 1) {
-			int ptr = (int) obj;
-			int len = (int) values[1].getValue();
-			buffer.position(ptr);
-			byte[] output = new byte[len];
-			buffer.get(output);
-			try {
-				@SuppressWarnings("unchecked")
-				Class<Message> type = (Class<Message>) returnType;
-				Method method = ReflectionUtils.findMethod(type, "parseFrom", byte[].class);
-				obj = method.invoke(null, output);
-			} catch (Exception e) {
-				throw new IllegalStateException("Cannot unpack return from function: " + function + "() at " + ptr, e);
-			}
-		}
-		@SuppressWarnings("unchecked")
-		T result = (T) obj;
-		buffer.position(input);
-		buffer.put(new byte[bytes.length]);
-		free(input);
-		return result;
-	}
-
 }
