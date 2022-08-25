@@ -1,28 +1,25 @@
-with import <nixpkgs> { };
+with import <nixpkgs> {
+  overlays = [
+    (self: super: {
+      # https://github.com/NixOS/nixpkgs/pull/188162
+      binaryen = super.binaryen.override { nodejs = super.nodejs-14_x; };
+    })
+  ];
+};
 mkShell {
 
   name = "env";
   buildInputs = [
-    python3Packages.python
-    python3Packages.venvShellHook
-    figlet wasmtime wabt emscripten nodejs cmake check protobuf protobufc pkg-config jbang
+    wasmtime wabt emscripten nodejs cmake check protobuf protobufc pkg-config jbang
   ];
 
-  venvDir = "./.venv";
-  postVenvCreation = ''
-    unset SOURCE_DATE_EPOCH
-    pip install wasmtime
-  '';
-
-  postShellHook = ''
-    # allow pip to install wheels
-    unset SOURCE_DATE_EPOCH
+  shellHook = ''
     mkdir -p ~/.emscripten
     cp -rf ${emscripten}/share/emscripten/cache ~/.emscripten
+    chmod +w -R ~/.emscripten
     export EM_CACHE=~/.emscripten/cache
     export TMP=/tmp
     export TMPDIR=/tmp
-    figlet ":wasm:"
   '';
 
 }
