@@ -38,6 +38,39 @@ bool predicate(uint8_t *data, int len) {
 
 The implementation uses [protobufs](https://developers.google.com/protocol-buffers) to communicate between the JVM and the WASM. This is a pattern that appears in [proxy-wasm](https://github.com/proxy-wasm), a standardization effort for gateway plugins growing out of the implementation in [Envoy](https://www.envoyproxy.io/).
 
+## Pre-requisites
+
+### Protoc
+To build the project you must have `protoc` installed. Execute the following command:
+```shell
+protoc --version
+```
+If installed the output should look like the following:
+```shell
+libprotoc 3.21.5
+```
+If the command is unkown/fails then install `protoc`. For Mac you can run:
+```shell
+brew install protobuf
+```
+
+### Emscripten
+To build the C WASM you will need `emscripten` installed. Execute the following command: 
+```shell
+emcc --version
+```
+If installed the output should look like the following:
+```shell
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 3.1.20-git
+Copyright (C) 2014 the Emscripten authors (see AUTHORS.txt)
+This is free and open source software under the MIT license.
+There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
+```
+If the command is unkown/fails then install `emscripten`. For Mac you can run:
+```shell
+brew install emscripten
+```
+ 
 ## Playing with JShell
 
 Here's a JShell REPL session that shows how you can play with the WASM module. Start with `./loader.jsh`:
