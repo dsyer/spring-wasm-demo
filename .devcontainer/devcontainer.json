@@ -24,7 +24,9 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	// "postCreateCommand": "uname -a",
+	"initializeCommand": "mkdir -p ${env:HOME}/.m2",
+	"onCreateCommand": "sudo chown vscode:vscode /home/vscode/.m2",
+	"postCreateCommand": "sudo setfacl -k /tmp",
 
 	// Comment out connect as root instead. More info: https://aka.ms/vscode-remote/containers/non-root.
 	"remoteUser": "vscode",
