@@ -7,8 +7,8 @@ Run the app and then send a request (e.g. with curl) to `localhost:8080/github/`
 * [x] Resource management (prevent leaks and re-use instances of the WASM). Maybe could be improved still, but the things that can be shared and now shared, and everything is disposed.
 * [x] Break out WasmLoader into a library JAR
 * [x] Add Spring Cloud Function sample
-* [-] Support malloc and free as exports so host can manage memory
-* [-] Switch to output pointer instead of multivalue (better for polyglot)
+* [x] Support malloc and free as exports so host can manage memory
+* [x] Switch to output pointer instead of multivalue (better for polyglot)
 * [x] Automate build of WASMs
 * [ ] Support for Cloud Events (maybe primary/sole format for functions?)
 * [ ] Pass some configuration down from the JVM into the WASM
@@ -40,6 +40,8 @@ The implementation uses [protobufs](https://developers.google.com/protocol-buffe
 
 ## Pre-requisites
 
+Apart from a JDK, the main pre-requisites are `protoc` and `emscripten`. These can be installed using [Nix](https://nixos.org), which you can use locally on Linux, MacOS or Windows (WSL) - type `nix-shell` in a terminal to get started. It is also set up automatically in the [Devcontainer](https://code.visualstudio.com/docs/remote/containers). The first build might be slow, but the results should be cached.
+
 ### Protoc
 To build the project you must have `protoc` installed. Execute the following command:
 ```shell
@@ -49,10 +51,7 @@ If installed the output should look like the following:
 ```shell
 libprotoc 3.21.5
 ```
-If the command is unkown/fails then install `protoc`. For Mac you can run:
-```shell
-brew install protobuf
-```
+If the command is unkown/fails then install `protoc`.
 
 ### Emscripten
 To build the C WASM you will need `emscripten` installed. Execute the following command: 
@@ -66,10 +65,7 @@ Copyright (C) 2014 the Emscripten authors (see AUTHORS.txt)
 This is free and open source software under the MIT license.
 There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE
 ```
-If the command is unkown/fails then install `emscripten`. For Mac you can run:
-```shell
-brew install emscripten
-```
+If the command is unkown/fails then install `emscripten`.
  
 ## Playing with JShell
 
@@ -91,6 +87,10 @@ jshell> WasiCtx wasi = new WasiCtxBuilder().inheritStdio().inheritStderr().inher
 ```
 
 ## Compiling a WASM
+
+There is a `Makefile` that automates all the building of WASMs. In a terminal type `make` and hit return.
+
+### Manual Steps
 
 You need WASM-compiled libraries for `protobuf` and `protobuf-c`. Those require some work but we can download pre-packaged binaries:
 
