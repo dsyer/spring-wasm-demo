@@ -1,0 +1,20 @@
+version: '3'
+services:
+  dev:
+    build:
+      context: ../
+      dockerfile: .devcontainer/Dockerfile
+      args:
+        USER: vscode
+        USER_ID: ${USER_ID:-1000}
+        USER_GID: ${USER_GID:-1000}
+    volumes:
+      - ..:/workspace:cached
+      - nix:/nix
+      - ${HOME}/.m2:/home/vscode/.m2
+    security_opt:
+      - label:disable
+    command: /bin/sh -c "while sleep 1000; do :; done"
+
+volumes:
+  nix:

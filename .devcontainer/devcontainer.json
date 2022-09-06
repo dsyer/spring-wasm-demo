@@ -1,21 +1,13 @@
 // For format details, see https://aka.ms/devcontainer.json. For config options, see the README at:
 // https://github.com/microsoft/vscode-dev-containers/tree/v0.209.6/containers/ubuntu
 {
-	"name": "Ubuntu",
-	"build": {
-		"dockerfile": "Dockerfile",
-		"args": { }
-	},
-	"runArgs": [
-		"--mount",
-		"type=bind,source=${env:HOME}/.m2,target=/home/vscode/.m2",
-		"-v",
-		"/nix"
-	],
+	"name": "spring-wasm-demo",
+	"dockerComposeFile": "docker-compose.yml",
+	"service": "dev",
+	"workspaceFolder": "/workspace",
 
 	// Set *default* container specific settings.json values on container create.
 	"settings": {},
-
 
 	// Add the IDs of extensions you want installed when the container is created.
 	"extensions": ["vscjava.vscode-java-pack","redhat.vscode-xml","ms-vscode.cpptools-extension-pack"],

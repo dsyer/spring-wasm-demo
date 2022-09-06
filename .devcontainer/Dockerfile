@@ -10,7 +10,9 @@ ARG USER=vscode
 ARG USER_ID=1000
 ARG USER_GID=1000
 
-RUN mkdir -m 0755 /nix && chown ${USER_ID}:${USER_GID} /nix
+VOLUME /nix
+
+RUN mkdir -pm 0755 /nix && chown ${USER_ID}:${USER_GID} /nix
 
 USER ${USER_ID}:${USER_GID}
 RUN curl -L https://nixos.org/nix/install | sh
