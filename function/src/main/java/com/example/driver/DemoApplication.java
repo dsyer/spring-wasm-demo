@@ -2,82 +2,68 @@ package com.example.driver;
 
 import java.util.function.Function;
 
-import com.google.protobuf.ByteString;
+import com.google.protobuf.InvalidProtocolBufferException;
+import io.cloudevents.CloudEvent;
+import io.cloudevents.core.builder.CloudEventBuilder;
+import io.cloudevents.core.provider.EventFormatProvider;
+import io.cloudevents.protobuf.ProtobufFormat;
+import io.cloudevents.spring.messaging.CloudEventMessageConverter;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.messaging.Message;
-import org.springframework.messaging.MessageHeaders;
-import org.springframework.messaging.converter.MessageConverter;
-import org.springframework.messaging.support.MessageBuilder;
-import org.springframework.stereotype.Component;
+import org.springframework.util.Assert;
 import org.springframework.wasm.WasmLoader;
 import org.springframework.wasm.WasmRunner;
 
 @SpringBootApplication
 class DemoApplication {
 
-	public static void main(String[] args) throws Exception {
+	public static void main(String[] args) {
 		SpringApplication.run(DemoApplication.class, args);
 	}
 
-}
-
-@Component
-class WASMFunction implements AutoCloseable, Function<SpringMessage, SpringMessage> {
-
-	private WasmLoader wasmLoader = new WasmLoader();
-
-	@Override
-	public void close() throws Exception {
-		this.wasmLoader.close();
-	}
-
-	@Override
-	public SpringMessage apply(SpringMessage input) {
-		try (WasmRunner runner = wasmLoader.runner(new ClassPathResource("message.wasm"))) {
-			return runner == null ? input : runner.call("filter", input, SpringMessage.class);
-		}
-	}
-
-}
-
-@Component
-class SpringMessageConverter implements MessageConverter {
-
-	@Override
-	public Object fromMessage(Message<?> request, Class<?> type) {
-		byte[] payload = bytes(request.getPayload());
-		if (type.isAssignableFrom(SpringMessage.class) && payload != null) {
-			SpringMessage.Builder msg = SpringMessage.newBuilder();
-			MessageHeaders headers = request.getHeaders();
-			for (String key : headers.keySet()) {
-				msg.putHeaders(key, headers.get(key).toString());
+	@Bean
+	Function<CloudEvent, CloudEvent> decorateEventWithWasm(WasmLoader wasmLoader) {
+		return (input) -> {
+			// Convert the incoming CE to proto CE
+			io.cloudevents.v1.proto.CloudEvent inputProto;
+			try {
+				byte[] inputProtoBytes = new ProtobufFormat().serialize(input);
+				inputProto = io.cloudevents.v1.proto.CloudEvent.parseFrom(inputProtoBytes);
 			}
-			msg.setPayload(ByteString.copyFrom(payload));
-			return msg.build();
-		}
-		return null;
+			catch (InvalidProtocolBufferException ex) {
+				throw new RuntimeException("Failed to convert CloudEvent to proto", ex);
+			}
+
+			// Invoke WASM with incoming proto CE
+			io.cloudevents.v1.proto.CloudEvent outputProto;
+			try (WasmRunner runner = wasmLoader.runner(new ClassPathResource("message.wasm"))) {
+				Assert.notNull(runner, "Unable to find WASM resource");
+				outputProto = runner.call("filter", inputProto, io.cloudevents.v1.proto.CloudEvent.class);
+			}
+
+			// Convert to outgoing CE from proto CE
+			CloudEvent output = EventFormatProvider
+					.getInstance()
+					.resolveFormat(ProtobufFormat.PROTO_CONTENT_TYPE)
+					.deserialize(outputProto.toByteArray());
+
+			// Decorate the outgoing CE
+			return CloudEventBuilder.from(output)
+					.withExtension("decoratedby", "function"	)
+					.build();
+		};
 	}
 
-	@Override
-	public Message<?> toMessage(Object payload, MessageHeaders headers) {
-		SpringMessage input = (SpringMessage) payload;
-		MessageBuilder<byte[]> msg = MessageBuilder.withPayload(input.getPayload().toByteArray());
-		msg.copyHeaders(headers);
-		msg.copyHeaders(input.getHeadersMap());
-		return msg.build();
+	@Bean
+	public CloudEventMessageConverter cloudEventMessageConverter() {
+		return new CloudEventMessageConverter();
 	}
 
-	private byte[] bytes(Object payload) {
-		if (payload instanceof String) {
-			return ((String) payload).getBytes();
-		}
-		if (payload instanceof byte[]) {
-			return (byte[]) payload;
-		}
-		return null;
+	@Bean
+	WasmLoader wasmLoader() {
+		return new WasmLoader();
 	}
-
 }

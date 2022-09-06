@@ -117,9 +117,13 @@ and for `function`:
 $ mkdir -p tmp/src
 $ cp function/src/main/proto/* tmp/src
 $ cd tmp/src
-$ emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+$ emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter','_malloc','_free']" -Wl,--no-entry message.c cloudevents.pb-c.c any.pb-c.c timestamp.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 $ cp message.wasm ../../function/src/main/resources
 ```
+
+## CloudEvent Protos
+The `function` sample has been modified to use `CloudEvent` proto rather than `SpringMessage`. The C protobuf implementation has been generated and checked into the repository. If this needs to be done again for some reason, execute the `function/protoc` target in the Makefile.
+
 
 ## Functions Returning Pointers
 
