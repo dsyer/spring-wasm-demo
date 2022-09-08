@@ -12,7 +12,7 @@ spring:
           predicates:
             - Path=/response/**
           filters:
-            - CustomWASMResponseFilter
+            - CustomWASMResponseFilter=message.wasm,false
             - StripPrefix=1
         - uri: https://httpbin.org
           predicates:

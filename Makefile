@@ -45,7 +45,7 @@ $(build)/$(gateway)/message.c:
 
 $(build)/$(gateway)/$(wasm): $(build)/$(gateway)/message.c $(build)/lib/libprotoc.a 
 	mkdir -p $(build)/$(gateway)
-	cd $(build)/$(gateway) && emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_filter','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+	cd $(build)/$(gateway) && emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_predicate','_request','_response','_malloc','_free']" -Wl,--no-entry message.c message.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
 
 $(gateway): $(build)/$(gateway)/$(wasm)
 	cp $(build)/$(gateway)/$(wasm) $(gateway)/src/main/resources

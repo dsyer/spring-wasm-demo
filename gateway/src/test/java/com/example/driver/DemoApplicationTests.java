@@ -42,4 +42,13 @@ public class DemoApplicationTests {
 			.expectStatus().isOk();
 	}
 
+	@Test
+	void response() {
+		webTestClient
+			.get().uri("/response/")
+			.exchange()
+			.expectStatus().isOk()
+			.expectHeader().exists("one");
+	}
+
 }

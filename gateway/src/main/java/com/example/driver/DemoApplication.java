@@ -15,7 +15,6 @@ import org.springframework.cloud.gateway.handler.predicate.AbstractRoutePredicat
 import org.springframework.cloud.gateway.handler.predicate.ReadBodyRoutePredicateFactory;
 import org.springframework.cloud.gateway.support.ServerWebExchangeUtils;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.codec.HttpMessageReader;
 import org.springframework.http.codec.ServerCodecConfigurer;
 import org.springframework.http.server.reactive.ServerHttpRequest;
@@ -54,13 +53,14 @@ class CustomWASMResponseFilter extends AbstractGatewayFilterFactory<CustomWASMPr
 				Collections.emptySet());
 	}
 
-	private byte[] response(ServerWebExchange exchange, byte[] body) {
-		HttpHeaders headers = (HttpHeaders) exchange.getResponse().getHeaders();
-		for (String name : headers.keySet()) {
-			exchange.getResponse().getHeaders().put(name, headers.get(name));
+	private byte[] response(Config config, ServerWebExchange exchange, byte[] body) {
+		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
+			if (runner == null) {
+				return body;
+			}
+			return MessageUtils.toResponse(exchange, runner.call("response",
+					MessageUtils.fromResponse(exchange, body), SpringMessage.class));
 		}
-		exchange.getResponse().getHeaders().add("one", "two");
-		return body;
 	}
 
 	@Override
@@ -68,13 +68,13 @@ class CustomWASMResponseFilter extends AbstractGatewayFilterFactory<CustomWASMPr
 		if (config.isReadBody()) {
 			ModifyResponseBodyGatewayFilterFactory.Config bodyConfig = new ModifyResponseBodyGatewayFilterFactory.Config();
 			bodyConfig.setRewriteFunction(byte[].class, byte[].class, (exchange, body) -> {
-				return Mono.just(response(exchange, body));
+				return Mono.just(response(config, exchange, body));
 			});
 			GatewayFilter bodyFilter = filter.apply(bodyConfig);
 			return bodyFilter;
 		} else {
 			return (exchange, chain) -> {
-				response(exchange, new byte[0]);
+				response(config, exchange, new byte[0]);
 				return chain.filter(exchange);
 			};
 		}
@@ -108,7 +108,7 @@ class CustomWASMRequestFilter extends AbstractGatewayFilterFactory<CustomWASMPre
 	private ServerHttpRequest request(Config config, ServerHttpRequest request, byte[] data) {
 		try (WasmRunner runner = wasmLoader.runner(config.getResource())) {
 			return runner == null ? request
-					: MessageUtils.toRequest(request, runner.call("filter",
+					: MessageUtils.toRequest(request, runner.call("request",
 							MessageUtils.fromRequest(request.getHeaders(), data), SpringMessage.class));
 		}
 	}
@@ -118,13 +118,15 @@ class CustomWASMRequestFilter extends AbstractGatewayFilterFactory<CustomWASMPre
 		if (config.isReadBody()) {
 			return (exchange, chain) -> ServerWebExchangeUtils
 					.cacheRequestBodyAndRequest(exchange,
-							serverHttpRequest -> ServerRequest.create(exchange, messageReaders).bodyToMono(byte[].class).doOnNext(requestPayload -> exchange.getAttributes()
-							.put(ATTR, request(config, serverHttpRequest, requestPayload))).then(Mono.defer(() -> {
-								ServerHttpRequest cachedRequest = exchange.getAttribute(ATTR);
-								Assert.notNull(cachedRequest, "cache request shouldn't be null");
-								exchange.getAttributes().remove(ATTR);
-								return chain.filter(exchange.mutate().request(cachedRequest).build());
-							})));
+							serverHttpRequest -> ServerRequest.create(exchange, messageReaders).bodyToMono(byte[].class)
+									.doOnNext(requestPayload -> exchange.getAttributes()
+											.put(ATTR, request(config, serverHttpRequest, requestPayload)))
+									.then(Mono.defer(() -> {
+										ServerHttpRequest cachedRequest = exchange.getAttribute(ATTR);
+										Assert.notNull(cachedRequest, "cached request shouldn't be null");
+										exchange.getAttributes().remove(ATTR);
+										return chain.filter(exchange.mutate().request(cachedRequest).build());
+									})));
 		} else {
 			return (exchange, chain) -> {
 				return chain

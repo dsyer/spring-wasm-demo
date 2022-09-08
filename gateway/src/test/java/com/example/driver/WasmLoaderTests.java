@@ -37,7 +37,18 @@ public class WasmLoaderTests {
 		try (WasmLoader loader = new WasmLoader()) {
 			try (WasmRunner runner = loader.runner(new ClassPathResource("message.wasm"))) {
 				SpringMessage message = SpringMessage.newBuilder().putHeaders("one", "two").build();
-				SpringMessage result = runner.call("filter", message, SpringMessage.class);
+				SpringMessage result = runner.call("request", message, SpringMessage.class);
+				assertThat(result.getHeadersMap()).containsKey("one");
+			}
+		}
+	}
+
+	@Test
+	public void testPrecompiledResponse() throws Exception {
+		try (WasmLoader loader = new WasmLoader()) {
+			try (WasmRunner runner = loader.runner(new ClassPathResource("message.wasm"))) {
+				SpringMessage message = SpringMessage.newBuilder().build();
+				SpringMessage result = runner.call("response", message, SpringMessage.class);
 				assertThat(result.getHeadersMap()).containsKey("one");
 			}
 		}
