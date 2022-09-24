@@ -9,7 +9,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class DemoApplicationTests {
+public class GatewayDemoApplicationTests {
 
 	@Autowired
 	private WebTestClient webTestClient;

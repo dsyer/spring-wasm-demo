@@ -10,10 +10,8 @@ syntax = "proto3";
 
 package io.cloudevents.v1;
 
-//import "google/protobuf/any.proto";
-//import "google/protobuf/timestamp.proto";
-import "any.proto";
-import "timestamp.proto";
+import "google/protobuf/any.proto";
+import "google/protobuf/timestamp.proto";
 
 option csharp_namespace = "CloudNative.CloudEvents.V1";
 option go_package = "cloudevents.io/genproto/v1";

@@ -24,20 +24,19 @@ $(loader): $(build)/$(loader)/$(wasm)
 
 $(build)/$(function)/message.c:
 	mkdir -p $(build)/$(function)
-	cp $(function)/src/main/proto/* $(build)/$(function)
+	cp -r $(function)/src/main/proto/* $(build)/$(function)
 
 $(build)/$(function)/$(wasm): $(build)/$(function)/message.c $(build)/lib/libprotoc.a
 	mkdir -p $(build)/$(function)
-	cd $(build)/$(function) && emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter','_malloc','_free']" -Wl,--no-entry message.c cloudevents.pb-c.c any.pb-c.c timestamp.pb-c.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -o message.wasm
+	cd $(build)/$(function) && emcc -I ../include -s ERROR_ON_UNDEFINED_SYMBOLS=0 -Os -s STANDALONE_WASM -s EXPORTED_FUNCTIONS="['_filter','_malloc','_free']" -Wl,--no-entry message.c cloudevents.pb-c.c google/protobuf/*.c ../lib/libprotobuf-c.a ../lib/libprotobuf.a -I . -o message.wasm
 
 $(function): $(build)/$(function)/$(wasm)
 	cp $(build)/$(function)/$(wasm) $(function)/src/main/resources
 
 $(function)/protoc:
 	mkdir -p $(build)/$(function)/protoc
-	protoc --proto_path=$(function)/src/main/proto --c_out=$(build)/$(function)/protoc \
-	$(function)/src/main/proto/cloudevents.proto $(function)/src/main/proto/any.proto $(function)/src/main/proto/timestamp.proto
-	cp $(build)/$(function)/protoc/* $(function)/src/main/proto
+	protoc --proto_path=$(function)/src/main/proto --c_out=$(build)/$(function)/protoc $(function)/src/main/proto/cloudevents.proto google/protobuf/any.proto google/protobuf/timestamp.proto
+	cp -r $(build)/$(function)/protoc/* $(function)/src/main/proto
 
 $(build)/$(gateway)/message.c:
 	mkdir -p $(build)/$(gateway)

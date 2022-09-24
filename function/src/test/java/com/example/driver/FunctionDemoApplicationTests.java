@@ -14,7 +14,7 @@ import org.springframework.http.ResponseEntity;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-public class DemoApplicationTests {
+public class FunctionDemoApplicationTests {
 
 	@Test
 	void match(@Autowired TestRestTemplate restTemplate) {
@@ -28,8 +28,8 @@ public class DemoApplicationTests {
 		ResponseEntity<Foo> response = restTemplate
 				.postForEntity("/decorateEventWithWasm", entity, Foo.class);
 		assertThat(response.getStatusCode()).isEqualTo(HttpStatus.OK);
-		assertThat(response.getHeaders().getFirst("ce-id")).isEqualTo("1-5150");
-		assertThat(response.getHeaders().getFirst("ce-decoratedby")).isEqualTo("function");
+		assertThat(response.getHeaders().getFirst("ce-id")).isEqualTo("1");
+		assertThat(response.getHeaders().getFirst("ce-decoratedby")).isEqualTo("wasm,function");
 		assertThat(response.getBody()).isEqualTo(new Foo("bar-5150"));
 	}
 }
