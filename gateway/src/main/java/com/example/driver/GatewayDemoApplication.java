@@ -31,10 +31,10 @@ import com.example.driver.CustomWASMPredicate.Config;
 import reactor.core.publisher.Mono;
 
 @SpringBootApplication
-class DemoApplication {
+class GatewayDemoApplication {
 
 	public static void main(String[] args) throws Exception {
-		SpringApplication.run(DemoApplication.class, args);
+		SpringApplication.run(GatewayDemoApplication.class, args);
 	}
 
 }

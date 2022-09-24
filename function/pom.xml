@@ -13,8 +13,8 @@
 	<description>Spring Wasmtime Function Sample</description>
 
 	<properties>
-		<start-class>com.example.driver.DemoApplication</start-class>
-		<spring-cloud.version>2022.0.0-M4</spring-cloud.version>
+		<start-class>com.example.driver.FunctionDemoApplication</start-class>
+		<spring-cloud.version>2022.0.0-SNAPSHOT</spring-cloud.version>
 		<cloudevents.version>2.3.0</cloudevents.version>
 	</properties>
 

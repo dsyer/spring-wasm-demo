@@ -18,11 +18,13 @@ import org.springframework.wasm.WasmLoader;
 import org.springframework.wasm.WasmRunner;
 
 @SpringBootApplication
-class DemoApplication {
+class FunctionDemoApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(DemoApplication.class, args);
+		SpringApplication.run(FunctionDemoApplication.class, args);
 	}
+
+	private static final String DECORATED_BY_EXTENSION = "decoratedby";
 
 	@Bean
 	Function<CloudEvent, CloudEvent> decorateEventWithWasm(WasmLoader wasmLoader) {
@@ -51,8 +53,16 @@ class DemoApplication {
 					.deserialize(outputProto.toByteArray());
 
 			// Decorate the outgoing CE
+			String decoratedBy;
+			if (output.getExtensionNames().contains(DECORATED_BY_EXTENSION)) {
+				decoratedBy = output.getExtension(DECORATED_BY_EXTENSION) + ",function";
+			}
+			else {
+				decoratedBy = "function";
+			}
+
 			return CloudEventBuilder.from(output)
-					.withExtension("decoratedby", "function"	)
+					.withExtension(DECORATED_BY_EXTENSION, decoratedBy)
 					.build();
 		};
 	}
