@@ -53,7 +53,7 @@ public class WasmRunner implements AutoCloseable {
 		var memory = linker.get(store, "", "memory").get().memory();
 		var buffer = memory.buffer(store);
 		Object obj = null;
-		try (var input = new Wrapper(buffer, message.toByteArray())) {
+		try (var input = new Wrapper(buffer, message)) {
 			if (Message.class.isAssignableFrom(returnType)) {
 				try (var output = new Wrapper(buffer)) {
 					linker.get(store, "", function).get().func().call(store, Val.fromI32(output.ptr()),
@@ -83,7 +83,8 @@ public class WasmRunner implements AutoCloseable {
 		private int ptr;
 		private boolean active = true;
 
-		public Wrapper(ByteBuffer buffer, byte[] bytes) {
+		public Wrapper(ByteBuffer buffer, Message message) {
+			byte[] bytes = message == null ? null : message.toByteArray();
 			this.buffer = buffer;
 			int pos = this.buffer.position();
 			this.bytes = bytes;
