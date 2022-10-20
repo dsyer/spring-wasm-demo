@@ -1,5 +1,7 @@
 package org.springframework.wasm;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -50,36 +52,53 @@ public class WasmRunner implements AutoCloseable {
 	public <S extends Message, T> T call(String function, S message, Class<T> returnType) {
 		var memory = linker.get(store, "", "memory").get().memory();
 		var buffer = memory.buffer(store);
-		var input = new Wrapper(buffer, message.toByteArray());
-		input.bytes();
 		Object obj = null;
-		if (Message.class.isAssignableFrom(returnType)) {
-			var output = new Wrapper(buffer);
-			linker.get(store, "", function).get().func().call(store, Val.fromI32(output.ptr()),
-					Val.fromI32(input.ptr()));
-			obj = output.get(returnType);
-			output.free();
-		} else {
-			Val[] values = linker.get(store, "", function).get().func().call(store,
-					Val.fromI32(input.ptr()));
-			obj = values[0].getValue();
-			if (returnType == Boolean.class) {
-				obj = (int) obj != 0;
+		try (var input = new Wrapper(buffer, message.toByteArray())) {
+			if (Message.class.isAssignableFrom(returnType)) {
+				try (var output = new Wrapper(buffer)) {
+					linker.get(store, "", function).get().func().call(store, Val.fromI32(output.ptr()),
+							Val.fromI32(input.ptr()));
+					obj = output.get(returnType);
+				}
+			} else {
+				Val[] values = linker.get(store, "", function).get().func().call(store,
+						Val.fromI32(input.ptr()));
+				obj = values[0].getValue();
+				if (returnType == Boolean.class) {
+					obj = (int) obj != 0;
+				}
 			}
 		}
 		@SuppressWarnings("unchecked")
 		T result = (T) obj;
-		input.free();
 		return result;
 	}
 
-	class Wrapper {
+	class Wrapper implements Closeable {
 
 		private static final int SIZE = 8;
 		private byte[] bytes = null;
 		private ByteBuffer buffer;
 		private int data;
 		private int ptr;
+		private boolean active = true;
+
+		public Wrapper(ByteBuffer buffer, byte[] bytes) {
+			this.buffer = buffer;
+			int pos = this.buffer.position();
+			this.bytes = bytes;
+			this.ptr = malloc(buffer, SIZE);
+			this.buffer.position(this.ptr + SIZE);
+			if (bytes != null) {
+				this.data = malloc(buffer, bytes.length);
+				this.buffer.position(this.data);
+				this.buffer.put(bytes);
+				this.buffer.position(this.ptr);
+				this.buffer.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(new int[] { this.data, bytes.length });
+				bytes();
+			}
+			this.buffer.position(pos);
+		}
 
 		public Wrapper(ByteBuffer buffer) {
 			this(buffer, null);
@@ -140,23 +159,11 @@ public class WasmRunner implements AutoCloseable {
 			return this.ptr;
 		}
 
-		public Wrapper(ByteBuffer buffer, byte[] bytes) {
-			this.buffer = buffer;
-			int pos = this.buffer.position();
-			this.bytes = bytes;
-			this.ptr = malloc(buffer, SIZE);
-			this.buffer.position(this.ptr + SIZE);
-			if (bytes != null) {
-				this.data = malloc(buffer, bytes.length);
-				this.buffer.position(this.data);
-				this.buffer.put(bytes);
-				this.buffer.position(this.ptr);
-				this.buffer.order(ByteOrder.LITTLE_ENDIAN).asIntBuffer().put(new int[] { this.data, bytes.length });
+		@Override
+		public void close() {
+			if (!active) {
+				return;
 			}
-			this.buffer.position(pos);
-		}
-
-		public void free() {
 			if (bytes != null) {
 				this.buffer.position(this.data);
 				this.buffer.put(new byte[this.bytes.length]);
@@ -166,6 +173,7 @@ public class WasmRunner implements AutoCloseable {
 			this.buffer.position(this.ptr);
 			this.buffer.put(new byte[SIZE]);
 			WasmRunner.this.free(this.ptr);
+			active = false;
 		}
 
 	}
