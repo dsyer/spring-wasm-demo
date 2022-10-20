@@ -14,7 +14,7 @@
 
 	<properties>
 		<start-class>com.example.driver.DemoApplication</start-class>
-		<spring-cloud.version>2022.0.0-M4</spring-cloud.version>
+		<spring-cloud.version>2022.0.0-SNAPSHOT</spring-cloud.version>
 	</properties>
 
 	<dependencies>
